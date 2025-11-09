@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Sushi — Pedido</title>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<header class="site-header">
+		<div class="brand">
+			<img src="https://i.imgur.com/4YbX5Qm.png" alt="logo" class="logo">
+			<h1>Suhsiii Sushi</h1>
+		</div>
+		<div class="header-actions">
+			<input id="search" type="search" placeholder="Buscar sushi, roll..." />
+			<button id="toggle-cart" class="cart-btn">Carrito (<span id="cart-count">0</span>)</button>
+		</div>
+	</header>
+
+	<main class="container">
+		<section class="left-col">
+			<section>
+				<h2>Menú</h2>
+				<div id="products" class="products-grid">
+					<!-- tarjetas de productos -->
+				</div>
+			</section>
+		</section>
+
+		<aside id="cart" class="cart">
+			<h2>Tu pedido</h2>
+			<div id="cart-items" class="cart-items">
+				<!-- items -->
+			</div>
+			<div class="cart-footer">
+				<div class="total">Total: <span id="cart-total">0.00</span> €</div>
+				<button id="clear-cart" class="secondary">Vaciar</button>
+				<button id="checkout" class="primary">Pagar</button>
+			</div>
+		</aside>
+	</main>
+
+	<script src="script.js" defer></script>
+</body>
+</html>
