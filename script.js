@@ -63,7 +63,7 @@ function renderProducts(filter = '') {
 				<div class="card-body">
 					<div class="card-title">
 						<h3>${escapeHtml(p.name)}</h3>
-						<strong>${p.price.toFixed(2)} €</strong>
+						<strong>${formatCurrency(p.price)}</strong>
 					</div>
 					<p>${escapeHtml(p.desc || '')}</p>
 					<div class="card-actions">
@@ -102,7 +102,7 @@ function renderCart(){
 		div.innerHTML = `
 			<div class="meta">
 				<strong>${escapeHtml(prod.name)}</strong>
-				<div style="color:#6b7280;font-size:13px">${prod.price.toFixed(2)} € ${item.option ? ' • ' + escapeHtml(item.option) : ''}</div>
+				<div style="color:#6b7280;font-size:13px">${formatCurrency(prod.price)} ${item.option ? ' • ' + escapeHtml(item.option) : ''}</div>
 			</div>
 			<div style="text-align:right">
 				<div class="qty-controls">
@@ -118,7 +118,8 @@ function renderCart(){
 		el.cartItems.appendChild(div);
 	});
 	el.cartCount.textContent = cart.reduce((s,i)=>s+i.qty,0);
-	el.cartTotal.textContent = total.toFixed(2);
+	// { changed code }: mostrar total en MXN con formato
+	el.cartTotal.textContent = formatCurrency(total);
 
 	// handlers (tener en cuenta data-opt)
 	el.cartItems.querySelectorAll('button').forEach(btn => {
@@ -131,6 +132,22 @@ function renderCart(){
 			if(action === 'remove') removeFromCart(id, opt);
 		};
 	});
+}
+
+// { added code }: registrar ventas en salesHistory y actualizar totals
+function recordSales(cartItems){
+	const now = Date.now();
+	cartItems.forEach(it => {
+		const prod = products.find(p => p.id === it.id);
+		if(!prod) return;
+		prod.salesHistory = prod.salesHistory || [];
+		prod.salesHistory.push({ qty: it.qty, ts: now });
+		// mantener tope para evitar crecimiento indefinido
+		if(prod.salesHistory.length > 500) prod.salesHistory.splice(0, prod.salesHistory.length - 500);
+		prod.sales = (prod.sales || 0) + it.qty;
+	});
+	// persistir cambios en productos
+	saveProducts(products);
 }
 
 function addToCart(id, option = '', qty = 1){
@@ -165,17 +182,7 @@ el.cartToggle.onclick = () => {
 	el.cartElem.scrollIntoView({behavior:'smooth'});
 };
 el.clearCart.onclick = () => { if(confirm('Vaciar carrito?')){ cart = []; saveCart(cart); renderCart(); } };
-el.checkout.onclick = () => {
-	if(cart.length===0) return alert('Carrito vacío.');
-	// registrar ventas (historial + totals)
-	recordSales(cart);
-	alert('Simulación de pago — total: ' + el.cartTotal.textContent + ' €');
-	cart=[];
-	saveCart(cart);
-	renderCart();
-	// actualizar top products
-	renderTopProducts();
-};
+
 
 // --- Address handling (new) ---
 const ADDR_KEY = 'suhsiii_address';
@@ -314,7 +321,7 @@ function renderTopProducts(){
 			<div class="card-body">
 				<div class="card-title">
 					<h3>${escapeHtml(p.name)}</h3>
-					<strong>${p.price.toFixed(2)} €</strong>
+					<strong>${formatCurrency(p.price)}</strong>
 				</div>
 				<p>${escapeHtml(p.desc || '')}</p>
 				<div class="card-actions">
@@ -361,7 +368,7 @@ function openProductModal(id){
 	modalImage.src = p.img || 'https://i.imgur.com/8Km9tLL.png';
 	modalTitle.textContent = p.name;
 	modalDesc.textContent = p.desc || '';
-	modalPrice.textContent = (p.price || 0).toFixed(2) + ' €';
+	modalPrice.textContent = formatCurrency(p.price);
 	// llenar select de proteínas: usar p.proteins si existe, si no usar DEFAULT_PROTEINS
 	const opts = Array.isArray(p.proteins) && p.proteins.length ? p.proteins : DEFAULT_PROTEINS;
 	modalProtein.innerHTML = '';
@@ -388,6 +395,91 @@ modalAddBtn.addEventListener('click', () => {
 	addToCart(currentProductId, opt, qty);
 	closeProductModal();
 });
+
+// { changed code }: helper para formatear moneda a pesos mexicanos
+function formatCurrency(value){
+	return '$' + Number(value || 0).toFixed(2) + ' MXN';
+}
+
+// Checkout modal handling
+const checkoutModal = document.getElementById('checkoutModal');
+const checkoutItemsEl = document.getElementById('checkoutItems');
+const checkoutTotalEl = document.getElementById('checkoutTotal');
+const confirmCheckoutBtn = document.getElementById('confirmCheckoutBtn');
+const closeCheckoutBtn = document.getElementById('closeCheckoutBtn');
+const checkoutStatus = document.getElementById('checkoutStatus');
+
+function openCheckoutModal(){
+	if(cart.length === 0){
+		return alert('El carrito está vacío.');
+	}
+	// mostrar items
+	checkoutItemsEl.innerHTML = '';
+	let total = 0;
+	cart.forEach(it => {
+		const p = products.find(x => x.id === it.id);
+		if(!p) return;
+		const line = document.createElement('div');
+		line.style.display = 'flex';
+		line.style.justifyContent = 'space-between';
+		line.style.padding = '6px 0';
+		line.innerHTML = `<div>${escapeHtml(p.name)} ${it.option ? ' • ' + escapeHtml(it.option) : ''} x${it.qty}</div><div>${formatCurrency(p.price * it.qty)}</div>`;
+		checkoutItemsEl.appendChild(line);
+		total += p.price * it.qty;
+	});
+	checkoutTotalEl.textContent = formatCurrency(total);
+	checkoutStatus.textContent = '';
+	checkoutModal.classList.add('open'); checkoutModal.setAttribute('aria-hidden','false');
+}
+
+closeCheckoutBtn.addEventListener('click', () => {
+	checkoutModal.classList.remove('open'); checkoutModal.setAttribute('aria-hidden','true');
+});
+
+// Confirmar pago (simulado) — valida dirección, registra ventas y vacía carrito
+confirmCheckoutBtn.addEventListener('click', async () => {
+	// validar dirección
+	const addr = loadAddress();
+	if(!addr || !addr.display){
+		// pedir al usuario que agregue dirección
+		if(!confirm('No hay dirección de entrega. ¿Quieres agregarla ahora?')) return;
+		// abrir modal de dirección
+		editAddrBtn.click();
+		return;
+	}
+	// simular proceso de pago
+	checkoutStatus.textContent = 'Procesando pago...';
+	confirmCheckoutBtn.disabled = true;
+	try{
+		await new Promise(r => setTimeout(r, 900)); // simulación
+		// registrar ventas y limpiar carrito
+		recordSales(cart);
+		cart = [];
+		saveCart(cart);
+		renderCart();
+		renderTopProducts();
+		checkoutStatus.textContent = 'Pago confirmado. ¡Gracias por tu pedido!';
+		setTimeout(() => {
+			checkoutModal.classList.remove('open'); checkoutModal.setAttribute('aria-hidden','true');
+			checkoutStatus.textContent = '';
+		}, 1200);
+	}catch(e){
+		checkoutStatus.textContent = 'Error procesando pago.';
+	}finally{
+		confirmCheckoutBtn.disabled = false;
+	}
+});
+
+// { changed code }: reasignar el handler del botón "Pagar" para abrir el modal
+el.checkout.onclick = () => {
+	openCheckoutModal();
+};
+
+// { changed code }: Asegúrate de usar formatCurrency en los renderers.
+// Ejemplos concretos aplicados:
+// - renderProducts: replace price display to use formatCurrency(p.price)
+// - renderTopProducts: replace price display to use formatCurrency(p.price)
+// - renderCart: replace price display to use formatCurrency(prod.price)
 
 // Helpers
 function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s])); }
