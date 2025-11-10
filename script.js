@@ -401,20 +401,23 @@ function formatCurrency(value){
 	return '$' + Number(value || 0).toFixed(2) + ' MXN';
 }
 
-// Checkout modal handling
-const checkoutModal = document.getElementById('checkoutModal');
-const checkoutItemsEl = document.getElementById('checkoutItems');
-const checkoutTotalEl = document.getElementById('checkoutTotal');
-const confirmCheckoutBtn = document.getElementById('confirmCheckoutBtn');
-const closeCheckoutBtn = document.getElementById('closeCheckoutBtn');
-const checkoutStatus = document.getElementById('checkoutStatus');
+// Checkout screen handling (reemplaza el modal anterior)
+const checkoutScreen = document.getElementById('checkoutScreen');
+const csItemsEl = document.getElementById('csItems');
+const csTotalEl = document.getElementById('csTotal');
+const csConfirmBtn = document.getElementById('csConfirmBtn');
+const csBackBtn = document.getElementById('csBackBtn');
+const csCancelBtn = document.getElementById('csCancelBtn');
+const csStatus = document.getElementById('csStatus');
+const orderComments = document.getElementById('orderComments');
+const needChange = document.getElementById('needChange');
+const changeAmount = document.getElementById('changeAmount');
+const houseDesc = document.getElementById('houseDesc');
 
-function openCheckoutModal(){
-	if(cart.length === 0){
-		return alert('El carrito está vacío.');
-	}
+function openCheckoutScreen(){
+	if(cart.length === 0) return alert('El carrito está vacío.');
 	// mostrar items
-	checkoutItemsEl.innerHTML = '';
+	csItemsEl.innerHTML = '';
 	let total = 0;
 	cart.forEach(it => {
 		const p = products.find(x => x.id === it.id);
@@ -424,62 +427,112 @@ function openCheckoutModal(){
 		line.style.justifyContent = 'space-between';
 		line.style.padding = '6px 0';
 		line.innerHTML = `<div>${escapeHtml(p.name)} ${it.option ? ' • ' + escapeHtml(it.option) : ''} x${it.qty}</div><div>${formatCurrency(p.price * it.qty)}</div>`;
-		checkoutItemsEl.appendChild(line);
+		csItemsEl.appendChild(line);
 		total += p.price * it.qty;
 	});
-	checkoutTotalEl.textContent = formatCurrency(total);
-	checkoutStatus.textContent = '';
-	checkoutModal.classList.add('open'); checkoutModal.setAttribute('aria-hidden','false');
+	csTotalEl.textContent = formatCurrency(total);
+	orderComments.value = '';
+	needChange.checked = false;
+	changeAmount.style.display = 'none';
+	changeAmount.value = '';
+	houseDesc.value = '';
+	csStatus.textContent = '';
+	checkoutScreen.classList.add('open'); checkoutScreen.setAttribute('aria-hidden','false');
 }
 
-closeCheckoutBtn.addEventListener('click', () => {
-	checkoutModal.classList.remove('open'); checkoutModal.setAttribute('aria-hidden','true');
+// cerrar pantalla
+function closeCheckoutScreen(){
+	checkoutScreen.classList.remove('open'); checkoutScreen.setAttribute('aria-hidden','true');
+}
+
+// toggle mostrar input de monto de cambio
+needChange.addEventListener('change', () => {
+	changeAmount.style.display = needChange.checked ? 'inline-block' : 'none';
+	if(!needChange.checked) changeAmount.value = '';
 });
 
-// Confirmar pago (simulado) — valida dirección, registra ventas y vacía carrito
-confirmCheckoutBtn.addEventListener('click', async () => {
+// Cancel / Back
+csBackBtn.addEventListener('click', closeCheckoutScreen);
+csCancelBtn.addEventListener('click', () => {
+	if(confirm('¿Cancelar el pedido y volver a la tienda?')) closeCheckoutScreen();
+});
+
+// guardar ordenes en localStorage
+function saveOrder(order){
+	const key = 'suhsiii_orders';
+	const raw = localStorage.getItem(key);
+	let list = raw ? JSON.parse(raw) : [];
+	list.unshift(order);
+	localStorage.setItem(key, JSON.stringify(list));
+}
+
+// confirmar pedido
+csConfirmBtn.addEventListener('click', async () => {
 	// validar dirección
 	const addr = loadAddress();
 	if(!addr || !addr.display){
-		// pedir al usuario que agregue dirección
 		if(!confirm('No hay dirección de entrega. ¿Quieres agregarla ahora?')) return;
-		// abrir modal de dirección
 		editAddrBtn.click();
 		return;
 	}
-	// simular proceso de pago
-	checkoutStatus.textContent = 'Procesando pago...';
-	confirmCheckoutBtn.disabled = true;
+	// recoger datos del formulario
+	const comments = orderComments.value.trim();
+	const need_change = !!needChange.checked;
+	const change_amt = need_change ? Number(changeAmount.value) || 0 : 0;
+	const house_description = houseDesc.value.trim();
+	// calcular total de nuevo
+	let total = 0;
+	cart.forEach(it => {
+		const p = products.find(x => x.id === it.id);
+		if(p) total += p.price * it.qty;
+	});
+	// si se solicitó cambio y el monto es menor al total, advertir (pero permitir)
+	if(need_change && change_amt > 0 && change_amt < total){
+		if(!confirm('El monto para cambio es menor que el total. ¿Deseas continuar?')) return;
+	}
+	csStatus.textContent = 'Procesando pedido...';
+	csConfirmBtn.disabled = true;
 	try{
-		await new Promise(r => setTimeout(r, 900)); // simulación
-		// registrar ventas y limpiar carrito
+		// Simula procesamiento
+		await new Promise(r => setTimeout(r, 900));
+		// registrar ventas en historial
 		recordSales(cart);
+		// crear objeto de orden
+		const order = {
+			id: 'o_' + Math.random().toString(36).slice(2,9),
+			items: cart.slice(),
+			total,
+			address: addr,
+			comments,
+			need_change,
+			change_amt,
+			house_description,
+			ts: Date.now()
+		};
+		// guardar orden
+		saveOrder(order);
+		// vaciar carrito
 		cart = [];
 		saveCart(cart);
 		renderCart();
 		renderTopProducts();
-		checkoutStatus.textContent = 'Pago confirmado. ¡Gracias por tu pedido!';
+		csStatus.textContent = 'Pedido confirmado. Gracias — Se guardó tu orden.';
 		setTimeout(() => {
-			checkoutModal.classList.remove('open'); checkoutModal.setAttribute('aria-hidden','true');
-			checkoutStatus.textContent = '';
+			csStatus.textContent = '';
+			closeCheckoutScreen();
 		}, 1200);
 	}catch(e){
-		checkoutStatus.textContent = 'Error procesando pago.';
+		console.error(e);
+		csStatus.textContent = 'Error al procesar el pedido.';
 	}finally{
-		confirmCheckoutBtn.disabled = false;
+		csConfirmBtn.disabled = false;
 	}
 });
 
-// { changed code }: reasignar el handler del botón "Pagar" para abrir el modal
+// reasignar el handler del botón "Pagar" para abrir la nueva pantalla
 el.checkout.onclick = () => {
-	openCheckoutModal();
+	openCheckoutScreen();
 };
-
-// { changed code }: Asegúrate de usar formatCurrency en los renderers.
-// Ejemplos concretos aplicados:
-// - renderProducts: replace price display to use formatCurrency(p.price)
-// - renderTopProducts: replace price display to use formatCurrency(p.price)
-// - renderCart: replace price display to use formatCurrency(prod.price)
 
 // Helpers
 function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s])); }
