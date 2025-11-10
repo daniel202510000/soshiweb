@@ -161,9 +161,8 @@ body{
 .prod-modal .panel:focus, .addr-modal .panel:focus, .checkout-panel:focus { outline: none; }
 
 .addr-box { display:none; }
-.mobile-addr-box { display:none; margin:0 0 8px 0; }
-
-@media (max-width: 600px) {
-	.addr-box { display:none !important; }
-	.mobile-addr-box { display:block; }
+.mobile-addr-box { display:none; }
+@media (max-width: 768px) {
+	.mobile-addr-box{display:block;margin-top:8px;}
+	.addr-box{display:none;}
 }
