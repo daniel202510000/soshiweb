@@ -160,9 +160,17 @@ body{
 /* ensure modal focus outline and scrolling on iOS */
 .prod-modal .panel:focus, .addr-modal .panel:focus, .checkout-panel:focus { outline: none; }
 
-.addr-box { display:none; }
+/* { changed code }: show address box by default; mobile-specific behaviour */
+.addr-box { display:flex; align-items:center; gap:8px; }
 .mobile-addr-box { display:none; }
+
+/* on small screens: show mobile address under the brand and hide the header address */
 @media (max-width: 768px) {
-	.mobile-addr-box{display:block;margin-top:8px;}
-	.addr-box{display:none;}
+	.mobile-addr-box { display:block; margin-top:8px; width:100%; }
+	/* hide the address that lives in the header-actions on mobile */
+	.header-actions .addr-box { display:none !important; }
+	/* stack brand contents (logo, title, mobile address) vertically */
+	.brand { flex-direction:column; align-items:flex-start; gap:6px; }
+	/* keep header actions aligned to the right */
+	.header-actions { width:100%; display:flex; justify-content:flex-end; gap:8px; }
 }
