@@ -195,6 +195,10 @@ const saveAddrBtn = document.getElementById('saveAddrBtn');
 const closeAddrBtn = document.getElementById('closeAddrBtn');
 const addrStatus = document.getElementById('addrStatus');
 
+// Referencias para móvil
+const mobileAddrTextEl = document.getElementById('mobileAddressText');
+const mobileEditAddrBtn = document.getElementById('mobileEditAddressBtn');
+
 function loadAddress(){
 	try{
 		return JSON.parse(localStorage.getItem(ADDR_KEY) || 'null');
@@ -205,11 +209,9 @@ function saveAddress(addrObj){
 	setAddressToUI(addrObj);
 }
 function setAddressToUI(addrObj){
-	if(!addrObj || !addrObj.display){
-		addrTextEl.textContent = 'Añadir dirección';
-		return;
-	}
-	addrTextEl.textContent = addrObj.display;
+	const text = (!addrObj || !addrObj.display) ? 'Añadir dirección' : addrObj.display;
+	addrTextEl.textContent = text;
+	if(mobileAddrTextEl) mobileAddrTextEl.textContent = text;
 }
 
 // show modal
@@ -271,6 +273,13 @@ setTimeout(() => {
 		setAddressToUI(a);
 	}catch(e){}
 }, 50);
+
+// Editar dirección desde móvil
+if(mobileEditAddrBtn){
+	mobileEditAddrBtn.addEventListener('click', () => {
+		editAddrBtn.click();
+	});
+}
 
 // --- Top sold handling (new) ---
 function scoreProductByRecency(prod, halfLifeDays = 30){
